@@ -20,4 +20,6 @@ classifiers = [
 ]
 dependencies = [
   "scipy",
+  "pymmg",
+  "meshio
 ]

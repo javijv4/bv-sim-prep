@@ -208,7 +208,7 @@ if swap:
                 'pv': 7,
                 'tv': 8,
                 'mv': 9,
-                'rvlv_junction': 10,
+                'rv_lv_junction': 10,
                 'apex': apex_node,
             }
 
@@ -224,7 +224,7 @@ else:
                 'pv': pv_label,
                 'tv': tv_label,
                 'mv': mv_label,
-                'rvlv_junction': rvlv_label,
+                'rv_lv_junction': rvlv_label,
                 'apex': apex_node,
             }
 
