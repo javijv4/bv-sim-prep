@@ -65,10 +65,26 @@ def mmg_isoline_meshing(mesh, function, isovalue=0, funcs_to_interpolate=[], bda
 
     out_mesh = io.read('output.o.meshb')
     new_func = np.zeros(len(out_mesh.points))
+
+    tet_mesh = io.Mesh(out_mesh.points, {'tetra': out_mesh.cells_dict['tetra']})
+    
+    # Interpolating for new nodes
+    new_nodes, node_map = generate_element_map(tet_mesh, mesh, function, isovalue)
+    elem_map = True
+    ien = mesh.cells[0].data
+    xyz = mesh.points
+    interp_basis = np.zeros([len(new_nodes),4])
+    for i in range(len(new_nodes)):
+        elem = node_map[i]
+        point = tet_mesh.points[new_nodes[i]]
+        vertex = xyz[ien[elem]]
+        interp_basis[i] = interpolate_tet(point, vertex)
+
+    new_func = np.zeros(len(tet_mesh.points))
     new_func[:len(mesh.points)] = function
-    new_func[len(mesh.points):] = isovalue
-    tet_mesh = io.Mesh(out_mesh.points, {'tetra': out_mesh.cells_dict['tetra']},
-                       point_data = {'f': new_func})
+    elem_func = new_func[ien[node_map]]
+    new_func[new_nodes] = np.sum(elem_func*interp_basis, axis=1)
+    tet_mesh.point_data['f'] = new_func
 
     # Cleaning
     os.remove('mesh.mesh')

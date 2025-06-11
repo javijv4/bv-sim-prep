@@ -766,10 +766,12 @@ class UVCGen:
 
         # # RV side
         rv_circ1 = self.run_rv_circumferential1(uvc, method)
-        rv_circ = self.run_rv_circumferential2(rv_circ1, uvc, method)
-        uvc.rv_mesh.point_data['circ'] = rv_circ
 
-        return lv_circ, rv_circ
+        # Commenting this for now, we probably need extra steps
+        rv_circ = self.run_rv_circumferential2(rv_circ1, uvc, method)
+        uvc.rv_mesh.point_data['circ'] = rv_circ1
+
+        return lv_circ, rv_circ1
 
 
 
