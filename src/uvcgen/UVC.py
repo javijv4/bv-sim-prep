@@ -215,7 +215,7 @@ class generalUVC:
         self.lv_sep_sep_apex_node = sep_nodes[np.argmin(dist)]
 
         self.sep_endo_apex_node = self.map_lv_bv[self.lv_sep_sep_apex_node]
-        self.sep_epi_apex_node = self.map_lv_bv[self.lv_sep_sep_apex_node]
+        self.sep_epi_apex_node = self.map_lv_bv[self.lv_sep_epi_apex_node]
 
 
         # Find apex for the rv
@@ -1077,14 +1077,30 @@ class UVC(generalUVC):
 
         # Getting apex distance
         nodes = self.rv_interface_nodes
-        apex_distance1 = np.linalg.norm(xyz[nodes] - self.xyz[self.sep_endo_apex_node], axis=1)
+        apex_distance1 = np.linalg.norm(xyz[nodes] - self.xyz[self.sep_epi_apex_node], axis=1)
         apex_distance2 = np.linalg.norm(xyz[nodes] - self.xyz[self.sep_endo_apex_node], axis=1)
         nodes = nodes[(apex_distance1>self.mesh_size*2)*(apex_distance2>self.mesh_size*2)]
 
         interface_xyz = xyz[nodes]
 
-        self.rv_bc1_marker_post = nodes[self.rvlv_normal_post@(interface_xyz - self.septum_mid_point).T > 0]
-        self.rv_bc1_marker_ant = nodes[self.rvlv_normal_ant@(interface_xyz - self.septum_mid_point).T > 0]
+        rv_bc1_marker_post = nodes[self.rvlv_normal_post@(interface_xyz - self.septum_mid_point).T > 0]
+        rv_bc1_marker_ant = nodes[self.rvlv_normal_ant@(interface_xyz - self.septum_mid_point).T > 0]
+
+        # Find nodes that are in both
+        inter_nodes = np.intersect1d(rv_bc1_marker_ant, rv_bc1_marker_post)
+        rv_bc1_marker_ant = np.setdiff1d(rv_bc1_marker_ant, inter_nodes)
+        rv_bc1_marker_post = np.setdiff1d(rv_bc1_marker_post, inter_nodes)
+
+        # Split these nodes
+        aux_vector = self.septum_mid_point - self.xyz[self.sep_epi_apex_node]
+        aux_vector = aux_vector/np.linalg.norm(aux_vector)
+        aux_vector = np.cross(self.septum_vector, aux_vector)
+
+        dist = aux_vector@(xyz[inter_nodes] - self.septum_mid_point).T
+        pos_nodes = inter_nodes[dist > 0]
+        neg_nodes = inter_nodes[dist < 0]
+        self.rv_bc1_marker_ant = np.union1d(rv_bc1_marker_ant, neg_nodes)
+        self.rv_bc1_marker_post = np.union1d(rv_bc1_marker_post, pos_nodes)
 
         marker = np.append(self.rv_bc1_marker_ant, self.rv_bc1_marker_post)
         vals = np.append(np.ones(len(self.rv_bc1_marker_ant)), -np.ones(len(self.rv_bc1_marker_post)))
@@ -1187,11 +1203,14 @@ def mmg_create_lv_circ_bc4(lv_circ3, uvc):
                                           funcs_to_interpolate=['lv_circ1', 'lv_circ2', 'trans'], bdata = mmg_bdata1)
 
     mmg_xyz2 = mmg_mesh2.points
+
+    io.write('check1.vtu', mmg_mesh1)
+    io.write('check2.vtu', mmg_mesh2)
     div_nodes2 = np.arange(len(mmg_xyz1), len(mmg_xyz2), dtype=int)   # New nodes are div nodes
     add_nodes = np.where(np.abs(mmg_mesh1.point_data['lv_circ3']) < tol)
     div_nodes2 = np.union1d(div_nodes2, add_nodes)
     mmg_mesh2.point_data['lv_circ3'] = mmg_mesh2.point_data['f']
-    mmg_mesh2.cell_data['map'] = [mmg_mesh1.cell_data['map'][0][mmg_mesh2.cell_data['map'][0]]]
+    # mmg_mesh2.cell_data['map'] = [mmg_mesh1.cell_data['map'][0][mmg_mesh2.cell_data['map'][0]]]
 
     mmg_circ1 = mmg_mesh2.point_data['lv_circ1']
     mmg_circ2 = mmg_mesh2.point_data['lv_circ2']
