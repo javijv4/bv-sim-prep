@@ -13,6 +13,7 @@ import uvcgen.UVC as uc
 import meshio as io
 from dolfinx.log import set_log_level, LogLevel
 from scipy.interpolate import interp1d
+from scipy.optimize import curve_fit
 
 set_log_level(LogLevel.WARNING)
 
@@ -279,40 +280,30 @@ class UVCGen:
 
         uvc.lv_mesh.point_data['long'] = norm_long[:len(uvc.lv_mesh.points)]
 
-        # Run rv
-        # pass lv_long to rv mesh
-        lv_long = np.zeros(len(uvc.bv_mesh.points))
-        lv_long[uvc.map_lv_bv] = uvc.lv_mesh.point_data['long']
-        uvc.bv_mesh.point_data['long_bc'] = lv_long
-        rv_lv_long = np.zeros(len(uvc.rv_mesh.points))
-        rv_lv_long[uvc.map_bv_rv[uvc.map_bv_rv>=0]] = lv_long[uvc.map_bv_rv>=0]
+        # Correct RV using lv function
+        bv_long = uvc.bv_mesh.point_data['long']
+        lv_long = bv_long[uvc.map_lv_bv]
+        norm_long = uvc.lv_mesh.point_data['long']
+        
+        # Fit a monotonic function to the lv_long vs norm_long
+        order = np.argsort(lv_long)
+        lv_long = lv_long[order]
+        norm_long = norm_long[order]
 
-        mmg_rv_long = np.zeros(len(self.rv_mmg_mesh.points))
-        mmg_rv_long[0:len(rv_lv_long)] = rv_lv_long
-        self.rv_mmg_mesh.point_data['long_bc'] = mmg_rv_long
-        uvc.rv_mesh.point_data['long_bc'] = rv_lv_long
+        def sigmoid(x, a, b, c, d):
+            return a / (1.0 + np.exp(-b * (x - c))) + d
 
+        popt, _ = curve_fit(sigmoid, lv_long, norm_long, p0=[1, 1, 0.5, 0])
 
-        zero_nodes = np.where(self.rv_bc == 3)[0]
-        mesh = dxio.read_meshio_mesh(self.rv_mmg_mesh)
-        _, mmg_rv_icorr = dxio.find_vtu_dx_mapping(mesh)
-        bcs_marker = {'face': {self.bndry['av']: 1.0, self.bndry['mv']: 1.0,
-                                self.bndry['pv']: 1.0, self.bndry['tv']: 1.0},
-                      'function': {self.bndry['rv_lv_junction']: mmg_rv_long[mmg_rv_icorr]}}
+        rv_long = bv_long[uvc.map_rv_bv]
+        rv_long[rv_long > 1.0] = 1.0  # In case of numerical error
+        rv_long[rv_long < 0.0] = 0.0
 
-        long = run_coord(self.rv_mmg_mesh, self.rv_mmg_bdata, bcs_marker)
-        self.rv_mmg_mesh.point_data['long'] = long
-        # io.write('mmg_mesh.vtu', self.rv_mmg_mesh)
+        new_rv_long = sigmoid(rv_long, *popt)
+        new_rv_long = (new_rv_long - new_rv_long.min()) / (new_rv_long.max() - new_rv_long.min())
+        uvc.rv_mesh.point_data['long'] = new_rv_long
 
-        # plt.figure(1,clear=True)
-        # plt.plot(long[zero_nodes], self.rv_mmg_mesh.point_data['long_plane'][zero_nodes], '.')
-
-        # rv_solver = self.get_solver('laplace', 'rv')
-        # rv_long = rv_solver.solve(bcs_marker)
-        # rv_long = rv_long.x.petsc_vec.array[self.rv_corr]
-
-        # dxio.visualize_meshtags('mt.xdmf', self.rv_mesh, self.rv_mt)
-        # uvc.rv_mesh.point_data['long'] = rv_long
+        return uvc.lv_mesh.point_data['long'], uvc.rv_mesh.point_data['long']
 
 
     def run_fast_longitudinal(self, uvc, method='laplace'):
@@ -399,6 +390,24 @@ class UVCGen:
             uvc.rv_mesh.point_data['trans'] = trans_rv
 
             ret += [trans_rv]
+
+        if which == 'all':
+            # Run auxiliar problem for epi trans
+            self.init_bv_mesh(uvc, og=True)
+            bv_solver = self.get_solver(method, 'bv')
+
+            bcs_bv = {'face': {self.bndry['lv_epi']: 0.0,
+                                    self.bndry['rv_epi']: 0.0,
+                                    self.bndry['lv_endo']: 1.0,
+                                    self.bndry['rv_endo']: -1.0,
+                                    self.bndry['rv_septum']: -1.0}}
+
+            trans_bv = bv_solver.solve(bcs_bv)
+            trans_bv = trans_bv.x.petsc_vec.array[self.bv_corr]
+            uvc.bv_mesh.point_data['epitrans'] = trans_bv
+
+            ret += [trans_bv]
+
         return ret
 
     @staticmethod

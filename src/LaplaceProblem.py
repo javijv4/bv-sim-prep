@@ -354,3 +354,78 @@ class TrajectoryProblem:
         u_plotter = BackgroundPlotter()
         u_plotter.add_mesh(u_grid, show_edges=True, n_colors=10, clim=clim)
         u_plotter.view_xy()
+
+
+class LaplacianSmoothingSolver:
+    def __init__(self, mesh, mt, alpha=1.0):
+        self.V = fem.functionspace(mesh, ("CG", 1))
+        self.u = ufl.TrialFunction(self.V)
+        self.v = ufl.TestFunction(self.V)
+        self.mesh = mesh
+        self.mt = mt
+
+        self.tdim = mesh.topology.dim
+        self.fdim = self.tdim - 1
+        self.ds = ufl.Measure("ds", domain=mesh, subdomain_data=mt)
+        
+        self.alpha = alpha  # Smoothing parameter
+        self.ufunc = fem.Function(self.V)  # Function to hold the function to be smoothed
+
+    def smooth(self, f_array, bcs_marker={}):
+        # Set the function to be smoothed
+        self.ufunc.x.petsc_vec.array = f_array
+
+        # Variational problem: (u - f) * v + alpha * dot(grad(u), grad(v))
+        a = fem.form((self.u * self.v + self.alpha * ufl.dot(ufl.grad(self.u), ufl.grad(self.v))) * ufl.dx)
+        L = fem.form((self.ufunc * self.v) * ufl.dx)
+
+        # Set boundary conditions
+        bcs = self.set_bc(bcs_marker)
+        if not bcs:
+            bcs = []
+
+        # Assemble and solve
+        A = dolfinx.fem.petsc.assemble_matrix(a, bcs)
+        A.assemble()
+        b = dolfinx.fem.petsc.assemble_vector(L)
+        dolfinx.fem.petsc.apply_lifting(b, [a], [bcs])
+        b.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
+        dolfinx.fem.petsc.set_bc(b, bcs)
+
+        solver = PETSc.KSP().create(A.getComm())
+        solver.setOperators(A)
+        uh = fem.Function(self.V)
+        solver.solve(b, uh.x.petsc_vec)
+        return uh
+
+
+
+    def set_bc(self, bcs_marker):
+        """
+        Parameters
+        ----------
+        bcs_marker : dict
+            keys are facet markers, values are bc values
+        """
+        bcs = []
+        for btype in bcs_marker.keys():
+            for marker in bcs_marker[btype]:
+                if btype == 'function':
+                    facets = self.mt.find(marker)
+                    dofs = fem.locate_dofs_topological(self.V, self.fdim, facets)
+                    uD = fem.Function(self.V)
+                    uD.x.petsc_vec.array =  bcs_marker[btype][marker]
+                    bc = fem.dirichletbc(uD, dofs)
+                elif btype == 'face':
+                    facets = self.mt.find(marker)
+                    dofs = fem.locate_dofs_topological(self.V, self.fdim, facets)
+                    uD = fem.Constant(self.mesh, ScalarType(bcs_marker[btype][marker]))
+                    bc = fem.dirichletbc(uD, dofs, self.V)
+                elif btype == 'point':
+                    point = np.array(marker)
+                    func = lambda x: np.isclose(np.linalg.norm(x-point[:,None], axis=0), 0)
+                    dofs = fem.locate_dofs_geometrical(self.V, func)
+                    uD = fem.Constant(self.mesh, ScalarType(bcs_marker[btype][marker]))
+                    bc = fem.dirichletbc(uD, dofs, self.V)
+                bcs.append(bc)
+        return bcs
