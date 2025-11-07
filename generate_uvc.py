@@ -12,7 +12,7 @@ from uvcgen.UVC import UVC
 from uvcgen.uvc_outputs import export_info, export_cheart_inputs
 
 # Inputs
-mesh_folder = 'test_data/mesh/'
+mesh_folder = 'example/'
 region_split_file = mesh_folder + 'region.FE'
 mesh_path = mesh_folder + 'bv_model'
 
