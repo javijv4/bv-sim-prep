@@ -16,7 +16,6 @@ mesh_folder = 'example/'
 region_split_file = mesh_folder + 'region.FE'
 mesh_path = mesh_folder + 'bv_model'
 
-
 # load boundaries and apex
 boundaries = chio.pfile_to_dict(mesh_folder + 'boundaries.P', fmt=int)
 apex_id = boundaries['apex']  # lv apex point in the epicardium
