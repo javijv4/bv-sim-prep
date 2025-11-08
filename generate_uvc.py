@@ -14,7 +14,7 @@ from uvcgen.uvc_outputs import export_info, export_cheart_inputs
 # Inputs
 mesh_folder = 'example/'
 region_split_file = mesh_folder + 'region.FE'
-mesh_path = mesh_folder + 'bv_model'
+mesh_path = mesh_folder + 'bv_model_gen'
 
 # load boundaries and apex
 boundaries = chio.pfile_to_dict(mesh_folder + 'boundaries.P', fmt=int)
@@ -46,7 +46,7 @@ uvc.split_rv_lv(septum)
 # Compute coordinates
 uvc.define_apex_nodes()
 print('Computing Transmural')
-lv_trans, rv_trans = mcg.run_transmural(uvc, method='laplace')
+lv_trans, rv_trans, epi_trans = mcg.run_transmural(uvc, method='laplace')
 print('Computing Longitudinal')
 long = mcg.run_longitudinal(uvc)
 uvc.merge_lv_rv_point_data(['long'])
@@ -58,7 +58,7 @@ if mcg.mmg:
     long = mcg.correct_longitudinal(uvc)
 
 print('Postprocessing ')
-uvc.rv_mesh.point_data['long'] = uvc.bv_mesh.point_data['long'][uvc.map_rv_bv]
+# uvc.rv_mesh.point_data['long'] = uvc.bv_mesh.point_data['long'][uvc.map_rv_bv]
 mcg.get_local_vectors(uvc, which='lv')
 mcg.get_local_vectors(uvc, which='rv')
 

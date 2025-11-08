@@ -8,7 +8,7 @@
 #tv=8
 #mv=9
 #rv_lv_junction=10
-#apex=15367         % Node ID
+#apex=15367
 #rv_lv_ant=21
 #rv_lv_post=22
 #lv_septum=27
