@@ -95,8 +95,7 @@ class LaplaceProblem:
 
     def solve(self, bcs_marker):
         bcs = self.set_bc(bcs_marker)
-        problem = dolfinx.fem.petsc.LinearProblem(self.a, self.L, bcs=bcs, 
-                                                  petsc_options_prefix="basic_linear_problem", 
+        problem = dolfinx.fem.petsc.LinearProblem(self.a, self.L, bcs=bcs,
                                                   petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
         uh = problem.solve()
 
@@ -122,8 +121,7 @@ class LaplaceProblem:
     def solve_diffusion(self, bcs_marker):
         # Solve first laplace
         bcs = self.set_bc(bcs_marker)
-        problem = dolfinx.fem.petsc.LinearProblem(self.a, self.L, bcs=bcs, 
-                                                  petsc_options_prefix="basic_linear_problem",
+        problem = dolfinx.fem.petsc.LinearProblem(self.a, self.L, bcs=bcs,
                                                   petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
         lap = problem.solve()
 
@@ -135,8 +133,7 @@ class LaplaceProblem:
 
         a = ufl.dot(ufl.grad(self.u), D*ufl.grad(self.v)) * ufl.dx
         bcs = self.set_bc(bcs_marker)
-        problem = dolfinx.fem.petsc.LinearProblem(a, self.L, bcs=bcs, 
-                                                  petsc_options_prefix="basic_linear_problem",
+        problem = dolfinx.fem.petsc.LinearProblem(a, self.L, bcs=bcs,
                                                   petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
         uh = problem.solve()
 
@@ -229,7 +226,6 @@ class TrajectoryProblem:
     def solve_laplace(self, bcs_marker):
         bcs = self.set_bc(bcs_marker)
         problem = dolfinx.fem.petsc.LinearProblem(self.lap_a, self.lap_L, bcs=bcs,
-                                                  petsc_options_prefix="basic_linear_problem",
                                                   petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
         uh = problem.solve()
 
