@@ -10,6 +10,37 @@ import numpy as np
 import meshio as io
 import subprocess as sp
 import os
+import shutil
+import sys
+
+
+def mmg3d_executable():
+    """Return the mmg3d program used for isoline meshing.
+
+    mesh scripts often call the env interpreter by absolute path without
+    activating the env, so the console script is not on PATH.
+    """
+    found = shutil.which("mmg3d")
+    if found:
+        return found
+
+    sibling = os.path.join(os.path.dirname(sys.executable), "mmg3d")
+    if os.path.isfile(sibling) and os.access(sibling, os.X_OK):
+        return sibling
+
+    try:
+        import mmg3d
+    except ImportError:
+        bundled = None
+    else:
+        bundled = os.path.join(os.path.dirname(mmg3d.__file__), "mmg3d_O3")
+    if bundled and os.path.isfile(bundled) and os.access(bundled, os.X_OK):
+        return bundled
+
+    raise FileNotFoundError(
+        "mmg3d executable not found on PATH or next to "
+        f"{sys.executable}. Install the mmg3d package in this environment."
+    )
 
 def load_sol(fname):
     cont = 0
@@ -57,7 +88,7 @@ def mmg_isoline_meshing(mesh, function, isovalue=0, funcs_to_interpolate=[], bda
     io.write('mesh.mesh', mesh)
     write_sol('func.sol', function, dim)
     with open('mmg.log', 'w') as ofile:
-        p = sp.Popen(['mmg3d', 'mesh.mesh', '-sol', 'func.sol', '-ls', '{:f}'.format(isovalue),
+        p = sp.Popen([mmg3d_executable(), 'mesh.mesh', '-sol', 'func.sol', '-ls', '{:f}'.format(isovalue),
                       '-nr', '-noinsert', '-noswap', '-nomove',
                       '-hausd', '{:f}'.format(obj_size/100),
                       '-out', 'output.o.meshb'], stdout=ofile, stderr=ofile)
@@ -267,7 +298,7 @@ def mmg_surf_isoline_meshing(mesh, function, isovalue=0):
     io.write('mesh.mesh', mesh)
     write_sol('func.sol', function, dim)
     with open('mmg.log', 'w') as ofile:
-        p = sp.Popen(['mmg3d', 'mesh.mesh', '-sol', 'func.sol', '-lssurf',  '{:f}'.format(isovalue),
+        p = sp.Popen([mmg3d_executable(), 'mesh.mesh', '-sol', 'func.sol', '-lssurf',  '{:f}'.format(isovalue),
                       '-nr', '-noinsert', '-noswap', '-nomove',
                       '-hausd', '{:f}'.format(obj_size/100),
                       '-out', 'output.o.meshb'], stdout=ofile, stderr=ofile)
